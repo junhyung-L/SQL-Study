@@ -1,8 +1,5 @@
 # SQL-Study
 # 데이터베이스 요약 정리
-
-기초 개념 → 데이터 모델 → 관계형 모델/제약 → 관계대수 → SQL 순으로 “처음부터 차근차근” 구조화했습니다.
-
 ---
 
 ## 목차
@@ -146,7 +143,8 @@
 ---
 
 ## SQL 기초 문법 요약
-**SELECT 기본 구조**
+
+### SELECT 기본 구조
 ```sql
 SELECT 컬럼
 FROM 테이블
@@ -155,3 +153,242 @@ FROM 테이블
 [GROUP BY 컬럼들 [HAVING 조건]]
 [ORDER BY 컬럼 ASC|DESC]
 [LIMIT N];
+```
+
+### 분류
+- **DDL**: `CREATE`, `ALTER`, `DROP`  
+- **DML**: `INSERT`, `UPDATE`, `DELETE`, `SELECT`  
+- **DCL**: `GRANT`, `REVOKE`
+
+### 조건/논리/집합/정렬
+```sql
+-- 조건/논리
+=, <>, <, >, <=, >=
+AND, OR, NOT, BETWEEN
+
+-- 집합 조건
+WHERE major IN ('CS', 'Math');
+
+-- 정렬/제한
+ORDER BY gpa DESC;
+ORDER BY major ASC, gpa DESC;
+LIMIT 3;
+
+-- 패턴 매칭
+WHERE name LIKE 'J%';     -- J로 시작
+WHERE name LIKE 'J_n%';   -- J + 1글자 + 그 뒤
+
+-- NULL
+WHERE gpa IS NULL;
+WHERE gpa IS NOT NULL;
+```
+
+### 집계 함수
+```sql
+SELECT COUNT(*), SUM(x), AVG(x), MAX(x), MIN(x)
+FROM T
+[GROUP BY key]
+[HAVING 조건];
+```
+
+### 간단 DML 예시
+```sql
+-- INSERT
+INSERT INTO Students VALUES 
+(1, 'Alice Kim', 20, 3.8, 'alice@inu.ac.kr', 'CS', 45),
+(2, 'Bob Lee',   22, 2.9, 'bob@gmail.com',   'Math', 30),
+(7, 'Grace Han', 20, 3.9, 'grace@inu.ac.kr', 'CS',   75);
+
+-- 명시적 INSERT
+INSERT INTO Students(sid, name, age, gpa, email, major, credits) VALUES
+(1, 'Alice Kim', 20, 3.8, 'alice@inu.ac.kr', 'CS', 45);
+
+-- DELETE
+DELETE FROM Students WHERE gpa > 3.0;
+DELETE FROM Students WHERE major IS NULL;
+
+-- UPDATE
+UPDATE Students
+SET credits = credits + 5
+WHERE gpa > 3.6;
+
+-- SELECT
+SELECT * FROM Students;
+SELECT DISTINCT major FROM Students;
+SELECT name, gpa FROM Students ORDER BY gpa DESC LIMIT 3;
+```
+
+---
+
+## 스키마/DDL 예시
+
+### 스키마 생성
+```sql
+CREATE SCHEMA PURCHASE AUTHORIZATION user_name;
+```
+
+### 기본 스키마에 테이블 생성
+```sql
+CREATE TABLE PRODUCT (
+  pid   CHAR(10),
+  pname VARCHAR(50),
+  price REAL
+);
+```
+
+### 특정 스키마에 테이블 생성
+```sql
+CREATE TABLE PURCHASE.PRODUCT (
+  pid   CHAR(10),
+  pname VARCHAR(50),
+  price REAL
+);
+```
+
+### 학사 예제 테이블
+```sql
+CREATE TABLE Students (
+  sid   CHAR(20)  NOT NULL,
+  name  CHAR(20)  NOT NULL,
+  login CHAR(10),
+  age   INTEGER,
+  gpa   REAL,
+  PRIMARY KEY (sid)
+);
+
+CREATE TABLE Courses (
+  Cid   CHAR(20)  NOT NULL,
+  DName CHAR(20),
+  DNum  INTEGER,
+  Cname CHAR(10),
+  PRIMARY KEY (Cid)
+);
+
+CREATE TABLE Enrolled (
+  sid   VARCHAR(20) NOT NULL,
+  cid   VARCHAR(20) NOT NULL,
+  grade CHAR(2),
+  PRIMARY KEY (sid, cid),
+  FOREIGN KEY (sid) REFERENCES Students(sid),
+  FOREIGN KEY (cid) REFERENCES Courses(Cid)
+);
+```
+
+### ALTER / DROP
+```sql
+-- 컬럼 추가
+ALTER TABLE Students ADD email VARCHAR(50);
+
+-- 타입 변경
+ALTER TABLE Students MODIFY gpa DOUBLE;
+
+-- 이름+타입 변경
+ALTER TABLE Students CHANGE gpa student_gpa FLOAT;
+
+-- 기본키 제거
+ALTER TABLE Students DROP PRIMARY KEY;
+
+-- 삭제
+DROP TABLE IF EXISTS Students;
+DROP SCHEMA PURCHASE;
+```
+
+---
+
+## JOIN/서브쿼리/VIEW 요약
+
+### JOIN
+```sql
+-- CROSS JOIN(카티션곱)
+SELECT * FROM Students, Enrolled;
+
+-- INNER JOIN
+SELECT * FROM Students s
+JOIN Enrolled e ON s.sid = e.sid;
+
+-- LEFT OUTER JOIN
+SELECT s.sid, s.name, e.cid, e.grade
+FROM Students s
+LEFT JOIN Enrolled e ON s.sid = e.sid;
+
+-- RIGHT OUTER JOIN
+SELECT e.sid, s.name, e.cid, e.grade
+FROM Students s
+RIGHT JOIN Enrolled e ON s.sid = e.sid;
+
+-- FULL OUTER JOIN (DBMS별 지원 상이)
+SELECT s.sid, s.name, e.cid, e.grade
+FROM Students s
+LEFT JOIN Enrolled e ON s.sid = e.sid
+UNION
+SELECT s.sid, s.name, e.cid, e.grade
+FROM Students s
+RIGHT JOIN Enrolled e ON s.sid = e.sid;
+
+-- SELF JOIN (같은 테이블 내 관계)
+SELECT c1.Cname AS course1, c2.Cname AS course2, c1.DName
+FROM Courses c1
+JOIN Courses c2
+  ON c1.DName = c2.DName AND c1.Cid < c2.Cid;
+```
+
+### 서브쿼리
+```sql
+-- IN
+SELECT s.name
+FROM Students s
+WHERE s.sid IN (SELECT e.sid FROM Enrolled e WHERE e.cid = '101');
+
+-- 중첩
+SELECT s.name
+FROM Students s
+WHERE s.sid IN (
+  SELECT e.sid
+  FROM Enrolled e
+  WHERE e.cid = (
+    SELECT c.cid FROM Courses c WHERE c.Cname = 'Database Systems'
+  )
+);
+
+-- EXISTS / NOT EXISTS
+SELECT s.name
+FROM Students s
+WHERE EXISTS (
+  SELECT 1 FROM Enrolled e WHERE e.sid = s.sid AND e.cid = '101'
+);
+
+SELECT s.name
+FROM Students s
+WHERE NOT EXISTS (
+  SELECT 1 FROM Enrolled e WHERE e.sid = s.sid AND e.cid = '101'
+);
+```
+
+### VIEW
+```sql
+CREATE VIEW v_enrolled_101 AS
+SELECT sid FROM Enrolled WHERE cid = '101';
+
+SELECT name
+FROM Students
+WHERE sid IN (SELECT sid FROM v_enrolled_101);
+```
+
+---
+
+## 데이터 타입 요약
+- **정수**: `TINYINT`, `SMALLINT`, `INTEGER`, `BIGINT`  
+- **실수**: `REAL`, `FLOAT`, `DOUBLE`  
+- **문자열**: `CHAR(n)`, `VARCHAR(n)`, `TEXT`  
+- **비트열**: `BIT(n)`, `BIT VARYING(n)`  
+- **기타**: `BOOLEAN`, `DATE`, `TIMESTAMP`
+
+---
+
+## 부록: 관계 vs NoSQL 한눈 비교
+| 구분 | 관계형(SQL) | NoSQL |
+|---|---|---|
+| 스키마 | 고정/정형 | 유연/스키마리스(문서 등) |
+| 질의 | SQL/조인 강력 | 문서 탐색/중첩 구조 유리 |
+| 정합성 | 강한 정합성 선호 | 가용성/확장성 우선 설계 가능 |
+| 사용처 | OLTP/정규화된 도메인 | 로그/이벤트/콘텐츠/그래프 등 |
